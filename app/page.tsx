@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 type ConsultationCategory =
   | "相続"
@@ -32,40 +32,18 @@ type ConsultationResult = {
   suggestedAction: string;
 };
 
+type CaseStatus = "ヒアリング中" | "士業確認待ち" | "受任候補" | "対応完了";
+
 type CaseItem = {
   id: string;
   clientName: string;
   category: ConsultationCategory;
   urgency: Urgency;
   professionalType: ProfessionalType;
-  status: "ヒアリング中" | "士業確認待ち" | "受任候補" | "対応完了";
+  status: CaseStatus;
   createdAt: string;
   summary: string;
   suggestedAction: string;
-};
-
-const demoCases = {
-  inheritance: {
-    label: "相続相談デモ",
-    category: "相続" as ConsultationCategory,
-    urgency: "中" as Urgency,
-    professionalType: "司法書士" as ProfessionalType,
-    text: `父が亡くなり、兄弟3人で相続の話をしています。実家の土地と建物、預金が少しありますが、長男が全部自分が管理すると言っていて、他の兄弟に詳しい資料を見せてくれません。母はすでに亡くなっています。何から確認すればよいかわかりません。`,
-  },
-  labor: {
-    label: "労務相談デモ",
-    category: "労務" as ConsultationCategory,
-    urgency: "高" as Urgency,
-    professionalType: "社労士" as ProfessionalType,
-    text: `従業員から、残業代が未払いだと言われました。本人は毎日2時間ほど残業していたと言っています。会社としては明確な残業指示を出したつもりはありません。タイムカードはありますが、業務時間の実態までは把握できていません。`,
-  },
-  contract: {
-    label: "契約トラブルデモ",
-    category: "契約トラブル" as ConsultationCategory,
-    urgency: "中" as Urgency,
-    professionalType: "弁護士" as ProfessionalType,
-    text: `Web制作を外部業者に依頼しましたが、納期を過ぎても完成しません。すでに着手金として30万円を支払っています。契約書はありますが、納期遅延時の対応については詳しく書かれていません。返金や損害賠償を請求できるのか知りたいです。`,
-  },
 };
 
 const categories: ConsultationCategory[] = [
@@ -89,40 +67,33 @@ const professionalTypes: ProfessionalType[] = [
   "横断相談",
 ];
 
-function ResultCard({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-      <h3 className="text-sm font-bold text-blue-700">{title}</h3>
-      <div className="mt-3 text-sm leading-7 text-slate-700">{children}</div>
-    </section>
-  );
-}
+const caseStatuses: CaseStatus[] = [
+  "ヒアリング中",
+  "士業確認待ち",
+  "受任候補",
+  "対応完了",
+];
 
-function ListItems({ items }: { items: string[] }) {
-  if (!items.length) {
-    return <p className="text-slate-400">該当項目はありません。</p>;
-  }
-
-  return (
-    <ul className="list-disc space-y-1 pl-5">
-      {items.map((item, index) => (
-        <li key={`${item}-${index}`}>{item}</li>
-      ))}
-    </ul>
-  );
-}
-
-function createCaseId(count: number) {
-  const date = new Date().toISOString().slice(0, 10).replaceAll("-", "");
-  const serial = String(count + 1).padStart(3, "0");
-  return `AKB-${date}-${serial}`;
-}
+const demoCases = {
+  inheritance: {
+    category: "相続" as ConsultationCategory,
+    urgency: "中" as Urgency,
+    professionalType: "司法書士" as ProfessionalType,
+    text: "父が亡くなり、兄弟3人で相続の話をしています。実家の土地と建物、預金が少しありますが、長男が全部自分が管理すると言っていて、他の兄弟に詳しい資料を見せてくれません。母はすでに亡くなっています。何から確認すればよいかわかりません。",
+  },
+  labor: {
+    category: "労務" as ConsultationCategory,
+    urgency: "高" as Urgency,
+    professionalType: "社労士" as ProfessionalType,
+    text: "従業員から、残業代が未払いだと言われました。本人は毎日2時間ほど残業していたと言っています。会社としては明確な残業指示を出したつもりはありません。タイムカードはありますが、業務時間の実態までは把握できていません。",
+  },
+  contract: {
+    category: "契約トラブル" as ConsultationCategory,
+    urgency: "中" as Urgency,
+    professionalType: "弁護士" as ProfessionalType,
+    text: "Web制作を外部業者に依頼しましたが、納期を過ぎても完成しません。すでに着手金として30万円を支払っています。契約書はありますが、納期遅延時の対応については詳しく書かれていません。返金や損害賠償を請求できるのか知りたいです。",
+  },
+};
 
 function formatDateTime() {
   return new Date().toLocaleString("ja-JP", {
@@ -132,6 +103,16 @@ function formatDateTime() {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function createCaseId(count: number) {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const serial = String(count + 1).padStart(3, "0");
+
+  return `AKB-${yyyy}${mm}${dd}-${serial}`;
 }
 
 export default function Home() {
@@ -144,17 +125,12 @@ export default function Home() {
   const [result, setResult] = useState<ConsultationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [cases, setCases] = useState<CaseItem[]>([]);
+  const [createdAt, setCreatedAt] = useState("");
 
-  const currentCaseId = useMemo(() => {
-    return createCaseId(cases.length);
-  }, [cases.length]);
+  const currentCaseId = createCaseId(cases.length);
 
-  const createdAt = useMemo(() => {
-    return formatDateTime();
-  }, []);
-
-  const handleDemoCase = (key: keyof typeof demoCases) => {
-    const demo = demoCases[key];
+  const handleDemoCase = (type: "inheritance" | "labor" | "contract") => {
+    const demo = demoCases[type];
 
     setClientName("山田 太郎");
     setCategory(demo.category);
@@ -162,6 +138,7 @@ export default function Home() {
     setProfessionalType(demo.professionalType);
     setConsultationText(demo.text);
     setResult(null);
+    setCreatedAt("");
   };
 
   const handleSubmit = async () => {
@@ -172,6 +149,7 @@ export default function Home() {
 
     setIsLoading(true);
     setResult(null);
+    setCreatedAt(formatDateTime());
 
     try {
       const response = await fetch("/api/consultation", {
@@ -191,13 +169,23 @@ export default function Home() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error ?? "APIリクエストに失敗しました。");
+        throw new Error(data.error || "APIリクエストに失敗しました。");
+      }
+
+      if (!data.result) {
+        throw new Error("APIから整理結果が返ってきませんでした。");
       }
 
       setResult(data.result);
     } catch (error) {
       console.error(error);
-      alert("相談内容の整理中にエラーが発生しました。");
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : "相談内容の整理中にエラーが発生しました。";
+
+      alert(message);
     } finally {
       setIsLoading(false);
     }
@@ -225,31 +213,26 @@ export default function Home() {
       suggestedAction: result.suggestedAction,
     };
 
-    setCases((prevCases) => [newCase, ...prevCases]);
+    setCases([newCase, ...cases]);
     alert("案件化しました。画面下部の案件一覧に追加されました。");
   };
 
-  const handleChangeCaseStatus = (
-    caseId: string,
-    status: CaseItem["status"]
-  ) => {
-    setCases((prevCases) =>
-      prevCases.map((caseItem) =>
-        caseItem.id === caseId ? { ...caseItem, status } : caseItem
+  const handleChangeCaseStatus = (id: string, status: CaseStatus) => {
+    setCases(
+      cases.map((caseItem) =>
+        caseItem.id === id ? { ...caseItem, status } : caseItem
       )
     );
   };
 
-  const handleDeleteCase = (caseId: string) => {
+  const handleDeleteCase = (id: string) => {
     const ok = confirm("この案件を一覧から削除しますか？");
 
     if (!ok) {
       return;
     }
 
-    setCases((prevCases) =>
-      prevCases.filter((caseItem) => caseItem.id !== caseId)
-    );
+    setCases(cases.filter((caseItem) => caseItem.id !== id));
   };
 
   return (
@@ -278,7 +261,7 @@ export default function Home() {
         </header>
 
         <section className="grid gap-6 lg:grid-cols-[420px_1fr]">
-          <div className="no-print space-y-6">
+          <aside className="no-print space-y-6">
             <div className="rounded-3xl bg-white p-6 shadow-sm">
               <h2 className="text-lg font-bold">相談入力</h2>
               <p className="mt-1 text-sm text-slate-500">
@@ -292,7 +275,6 @@ export default function Home() {
                     value={clientName}
                     onChange={(event) => setClientName(event.target.value)}
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                    placeholder="例：山田 太郎"
                   />
                 </label>
 
@@ -361,18 +343,29 @@ export default function Home() {
               </div>
 
               <div className="mt-5 grid grid-cols-1 gap-2">
-                {Object.entries(demoCases).map(([key, demo]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() =>
-                      handleDemoCase(key as keyof typeof demoCases)
-                    }
-                    className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    {demo.label}
-                  </button>
-                ))}
+                <button
+                  type="button"
+                  onClick={() => handleDemoCase("inheritance")}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  相続相談デモ
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDemoCase("labor")}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  労務相談デモ
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDemoCase("contract")}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  契約トラブルデモ
+                </button>
               </div>
 
               <button
@@ -395,18 +388,22 @@ export default function Home() {
                     {currentCaseId}
                   </span>
                 </div>
+
                 <div className="flex justify-between border-b border-slate-100 pb-2">
                   <span className="text-slate-500">カテゴリ</span>
                   <span className="font-semibold">{category}</span>
                 </div>
+
                 <div className="flex justify-between border-b border-slate-100 pb-2">
                   <span className="text-slate-500">緊急度</span>
                   <span className="font-semibold">{urgency}</span>
                 </div>
+
                 <div className="flex justify-between border-b border-slate-100 pb-2">
                   <span className="text-slate-500">担当候補</span>
                   <span className="font-semibold">{professionalType}</span>
                 </div>
+
                 <div className="flex justify-between">
                   <span className="text-slate-500">ステータス</span>
                   <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700">
@@ -415,9 +412,9 @@ export default function Home() {
                 </div>
               </div>
             </div>
-          </div>
+          </aside>
 
-          <div
+          <section
             id="print-area"
             className="rounded-3xl bg-white p-6 shadow-sm print:shadow-none"
           >
@@ -441,6 +438,7 @@ export default function Home() {
                 >
                   PDF出力
                 </button>
+
                 <button
                   type="button"
                   onClick={handleCreateCase}
@@ -457,22 +455,27 @@ export default function Home() {
                 <span className="text-slate-500">案件ID：</span>
                 <span className="font-mono font-semibold">{currentCaseId}</span>
               </div>
+
               <div>
                 <span className="text-slate-500">作成日時：</span>
-                <span className="font-semibold">{createdAt}</span>
+                <span className="font-semibold">{createdAt || "未作成"}</span>
               </div>
+
               <div>
                 <span className="text-slate-500">相談者名：</span>
                 <span className="font-semibold">{clientName}</span>
               </div>
+
               <div>
                 <span className="text-slate-500">相談カテゴリ：</span>
                 <span className="font-semibold">{category}</span>
               </div>
+
               <div>
                 <span className="text-slate-500">緊急度：</span>
                 <span className="font-semibold">{urgency}</span>
               </div>
+
               <div>
                 <span className="text-slate-500">担当候補士業：</span>
                 <span className="font-semibold">{professionalType}</span>
@@ -510,41 +513,73 @@ export default function Home() {
 
             {result && !isLoading && (
               <div className="mt-6 grid gap-4">
-                <ResultCard title="相談要約">
-                  <p className="whitespace-pre-wrap">{result.summary}</p>
-                </ResultCard>
+                <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                  <h3 className="text-sm font-bold text-blue-700">相談要約</h3>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                    {result.summary}
+                  </p>
+                </section>
 
-                <ResultCard title="状況整理">
-                  <p className="whitespace-pre-wrap">{result.situation}</p>
-                </ResultCard>
+                <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                  <h3 className="text-sm font-bold text-blue-700">状況整理</h3>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                    {result.situation}
+                  </p>
+                </section>
 
-                <ResultCard title="主な論点">
-                  <ListItems items={result.issues} />
-                </ResultCard>
+                <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                  <h3 className="text-sm font-bold text-blue-700">主な論点</h3>
+                  <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-7 text-slate-700">
+                    {result.issues.map((item, index) => (
+                      <li key={`issue-${index}`}>{item}</li>
+                    ))}
+                  </ul>
+                </section>
 
-                <ResultCard title="確認質問">
-                  <ListItems items={result.questions} />
-                </ResultCard>
+                <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                  <h3 className="text-sm font-bold text-blue-700">確認質問</h3>
+                  <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-7 text-slate-700">
+                    {result.questions.map((item, index) => (
+                      <li key={`question-${index}`}>{item}</li>
+                    ))}
+                  </ul>
+                </section>
 
-                <ResultCard title="必要書類">
-                  <ListItems items={result.requiredDocuments} />
-                </ResultCard>
+                <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                  <h3 className="text-sm font-bold text-blue-700">必要書類</h3>
+                  <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-7 text-slate-700">
+                    {result.requiredDocuments.map((item, index) => (
+                      <li key={`document-${index}`}>{item}</li>
+                    ))}
+                  </ul>
+                </section>
 
-                <ResultCard title="士業向けメモ">
-                  <p className="whitespace-pre-wrap">
+                <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                  <h3 className="text-sm font-bold text-blue-700">
+                    士業向けメモ
+                  </h3>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
                     {result.professionalMemo}
                   </p>
-                </ResultCard>
+                </section>
 
-                <ResultCard title="Akebono内部メモ">
-                  <p className="whitespace-pre-wrap">{result.internalMemo}</p>
-                </ResultCard>
+                <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                  <h3 className="text-sm font-bold text-blue-700">
+                    Akebono内部メモ
+                  </h3>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                    {result.internalMemo}
+                  </p>
+                </section>
 
-                <ResultCard title="次の推奨アクション">
-                  <p className="whitespace-pre-wrap">
+                <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                  <h3 className="text-sm font-bold text-blue-700">
+                    次の推奨アクション
+                  </h3>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
                     {result.suggestedAction}
                   </p>
-                </ResultCard>
+                </section>
 
                 <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
                   <h3 className="text-sm font-bold text-amber-800">
@@ -557,7 +592,7 @@ export default function Home() {
                 </section>
               </div>
             )}
-          </div>
+          </section>
         </section>
 
         <section className="no-print rounded-3xl bg-white p-6 shadow-sm">
@@ -568,7 +603,7 @@ export default function Home() {
               </p>
               <h2 className="mt-1 text-xl font-bold">案件一覧</h2>
               <p className="mt-2 text-sm text-slate-500">
-                「案件化」した相談がここに追加されます。今はデモ用の一時保存です。
+                「案件化」した相談がここに追加されます。現時点では営業デモ用の一時保存です。
               </p>
             </div>
 
@@ -599,12 +634,15 @@ export default function Home() {
                         <p className="font-mono text-sm font-bold text-blue-700">
                           {caseItem.id}
                         </p>
+
                         <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
                           {caseItem.category}
                         </span>
+
                         <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
                           緊急度：{caseItem.urgency}
                         </span>
+
                         <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
                           {caseItem.professionalType}
                         </span>
@@ -625,15 +663,16 @@ export default function Home() {
                         onChange={(event) =>
                           handleChangeCaseStatus(
                             caseItem.id,
-                            event.target.value as CaseItem["status"]
+                            event.target.value as CaseStatus
                           )
                         }
                         className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                       >
-                        <option value="ヒアリング中">ヒアリング中</option>
-                        <option value="士業確認待ち">士業確認待ち</option>
-                        <option value="受任候補">受任候補</option>
-                        <option value="対応完了">対応完了</option>
+                        {caseStatuses.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
                       </select>
 
                       <button
@@ -651,7 +690,7 @@ export default function Home() {
                       <h4 className="text-sm font-bold text-slate-700">
                         相談要約
                       </h4>
-                      <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm leading-7 text-slate-600">
+                      <p className="mt-2 max-h-32 overflow-hidden whitespace-pre-wrap text-sm leading-7 text-slate-600">
                         {caseItem.summary}
                       </p>
                     </div>
@@ -660,7 +699,7 @@ export default function Home() {
                       <h4 className="text-sm font-bold text-slate-700">
                         次の推奨アクション
                       </h4>
-                      <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm leading-7 text-slate-600">
+                      <p className="mt-2 max-h-32 overflow-hidden whitespace-pre-wrap text-sm leading-7 text-slate-600">
                         {caseItem.suggestedAction}
                       </p>
                     </div>

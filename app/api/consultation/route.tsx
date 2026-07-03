@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type ConsultationRequest = {
   clientName?: string;
@@ -21,19 +22,42 @@ type ConsultationResult = {
   suggestedAction: string;
 };
 
-function normalizeResult(data: Partial<ConsultationResult>): ConsultationResult {
+function toStringValue(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function normalizeResult(value: unknown): ConsultationResult {
+  const data =
+    typeof value === "object" && value !== null
+      ? (value as Record<string, unknown>)
+      : {};
+
   return {
-    summary: data.summary ?? "",
-    situation: data.situation ?? "",
-    issues: Array.isArray(data.issues) ? data.issues : [],
-    questions: Array.isArray(data.questions) ? data.questions : [],
-    requiredDocuments: Array.isArray(data.requiredDocuments)
-      ? data.requiredDocuments
-      : [],
-    professionalMemo: data.professionalMemo ?? "",
-    internalMemo: data.internalMemo ?? "",
-    suggestedAction: data.suggestedAction ?? "",
+    summary: toStringValue(data.summary),
+    situation: toStringValue(data.situation),
+    issues: toStringArray(data.issues),
+    questions: toStringArray(data.questions),
+    requiredDocuments: toStringArray(data.requiredDocuments),
+    professionalMemo: toStringValue(data.professionalMemo),
+    internalMemo: toStringValue(data.internalMemo),
+    suggestedAction: toStringValue(data.suggestedAction),
   };
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Unknown error";
 }
 
 export async function POST(request: Request) {
@@ -42,24 +66,21 @@ export async function POST(request: Request) {
 
     if (!apiKey) {
       return Response.json(
-        { error: "OPENAI_API_KEY is not set." },
+        {
+          error:
+            "OPENAI_API_KEY is not set. VercelのEnvironment VariablesにOPENAI_API_KEYを設定し、Redeployしてください。",
+        },
         { status: 500 }
       );
     }
 
-    const openai = new OpenAI({
-      apiKey,
-    });
-
     const body = (await request.json()) as ConsultationRequest;
 
-    const {
-      clientName = "未入力",
-      category = "未分類",
-      urgency = "未設定",
-      professionalType = "未設定",
-      consultationText = "",
-    } = body;
+    const clientName = body.clientName || "未入力";
+    const category = body.category || "未分類";
+    const urgency = body.urgency || "未設定";
+    const professionalType = body.professionalType || "未設定";
+    const consultationText = body.consultationText || "";
 
     if (!consultationText.trim()) {
       return Response.json(
@@ -67,6 +88,10 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const openai = new OpenAI({
+      apiKey,
+    });
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4.1-mini",
@@ -133,15 +158,32 @@ ${consultationText}
       );
     }
 
-    const parsed = JSON.parse(content) as Partial<ConsultationResult>;
-    const result = normalizeResult(parsed);
+    let parsed: unknown;
 
-    return Response.json({ result });
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      return Response.json(
+        {
+          error: "AIのJSON出力の解析に失敗しました。",
+          raw: content,
+        },
+        { status: 500 }
+      );
+    }
+
+    return Response.json({
+      result: normalizeResult(parsed),
+    });
   } catch (error) {
     console.error("Consultation API Error:", error);
 
     return Response.json(
-      { error: "相談内容の整理中にエラーが発生しました。" },
+      {
+        error: `相談内容の整理中にエラーが発生しました: ${getErrorMessage(
+          error
+        )}`,
+      },
       { status: 500 }
     );
   }
