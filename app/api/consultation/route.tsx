@@ -2,10 +2,6 @@ import OpenAI from "openai";
 
 export const runtime = "nodejs";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 type ConsultationRequest = {
   clientName?: string;
   category?: string;
@@ -42,12 +38,18 @@ function normalizeResult(data: Partial<ConsultationResult>): ConsultationResult 
 
 export async function POST(request: Request) {
   try {
-    if (!process.env.OPENAI_API_KEY) {
+    const apiKey = process.env.OPENAI_API_KEY;
+
+    if (!apiKey) {
       return Response.json(
         { error: "OPENAI_API_KEY is not set." },
         { status: 500 }
       );
     }
+
+    const openai = new OpenAI({
+      apiKey,
+    });
 
     const body = (await request.json()) as ConsultationRequest;
 
